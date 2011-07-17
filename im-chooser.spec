@@ -6,7 +6,7 @@ Summary:	Desktop Input Method configuration tool
 #Summary(pl.UTF-8):	-
 Name:		im-chooser
 Version:	1.4.2
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Applications
 Source0:	http://fedorahosted.org/releases/i/m/%{name}/%{name}-%{version}.tar.bz2
@@ -69,9 +69,11 @@ rm -rf $RPM_BUILD_ROOT
 rm -rf $RPM_BUILD_ROOT
 
 %post
+/sbin/ldconfig
 %update_icon_cache hicolor
 
 %postun
+/sbin/ldconfig
 %update_icon_cache hicolor
 
 %files -f %{name}.lang
