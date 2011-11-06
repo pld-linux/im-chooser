@@ -1,9 +1,0 @@
-diff -pruN im-chooser-1.4.2.orig/src/im-chooser.desktop.in.in im-chooser-1.4.2/src/im-chooser.desktop.in.in
---- im-chooser-1.4.2.orig/src/im-chooser.desktop.in.in	2011-01-26 13:22:51.000000000 +0900
-+++ im-chooser-1.4.2/src/im-chooser.desktop.in.in	2011-05-10 20:12:35.000000000 +0900
-@@ -8,4 +8,4 @@ Terminal=false
- Type=Application
- StartupNotify=true
- Categories=Applications;Settings;X-GNOME-PersonalSettings;
--NotShowIn=GNOME;XFCE;
-+NotShowIn=XFCE;

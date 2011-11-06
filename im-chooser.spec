@@ -1,55 +1,66 @@
 #
 # Conditional build:
 %bcond_with	gtk2		# build with gtk+2 (default is gtk+3)
+%bcond_without	xfce		# Xfce 4 selector
 #
 Summary:	Desktop Input Method configuration tool
-#Summary(pl.UTF-8):	-
+Summary(pl.UTF-8):	Narzędzie do konfiguracji metod wprowadzania znaków dla środowiska graficznego
 Name:		im-chooser
-Version:	1.4.2
-Release:	2
+Version:	1.5.1
+Release:	1
 License:	GPL v2
 Group:		Applications
-Source0:	http://fedorahosted.org/releases/i/m/%{name}/%{name}-%{version}.tar.bz2
-# Source0-md5:	f5205239f8d259ecd7720097346d440d
-Patch0:		%{name}-enable-apps-on-gnome.patch
+Source0:	http://fedorahosted.org/releases/i/m/im-chooser/%{name}-%{version}.tar.bz2
+# Source0-md5:	0d9cd3da2c66f28c00b2f0e2fd7bed3e
 URL:		http://fedorahosted.org/im-chooser/
+BuildRequires:	glib2-devel >= 1:2.16.0
+BuildRequires:	imsettings-devel >= 1.2.0
+%{?with_xfce:BuildRequires:	libxfce4util-devel}
+BuildRequires:	xorg-lib-libSM-devel
 %if %{with gtk2}
-BuildRequires:	gtk+2-devel
+BuildRequires:	gtk+2-devel >= 2:2.16.0
 BuildConflicts:	gtk+3-devel
 %else
-BuildRequires:	gtk+3-devel
-BuildRequires:	gnome-control-center-devel
+BuildRequires:	gtk+3-devel >= 3.0.0
+#BuildRequires:	gnome-control-center-devel >= 3.0.0
 %endif
-BuildRequires:	xorg-lib-libSM-devel
-BuildRequires:	imsettings-devel >= 1.2.0
-BuildRequires:	desktop-file-utils
 Requires:	imsettings >= 1.2.0
+Obsoletes:	im-chooser-gnome3
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %description
 im-chooser is a GUI configuration tool to choose the Input Method
 to be used or disable Input Method usage on the desktop.
 
-#%description -l pl.UTF-8
+%description -l pl.UTF-8
+im-chooser to graficzne narzędzie do konfiguracji pozwalające na
+wybór metody wprowadzania znaków (Input Method) lub wyłączenie
+użycia IM w środowisku graficznym.
 
-%package	gnome3
-Summary:	control-center module for im-chooser on GNOME3
+%package xfce
+Summary:	im-chooser application for Xfce 4
+Summary(pl.UTF-8):	Aplikacja im-chooser dla Xfce 4
 Group:		Applications/System
 Requires:	%{name} = %{version}-%{release}
 
-%description gnome3
+%description xfce
 im-chooser is a GUI configuration tool to choose the Input Method
 to be used or disable Input Method usage on the desktop.
 
-This package contains the control-center panel module on GNOME3.
+This package contains the Xfce 4 application.
+
+%description xfce -l pl.UTF-8
+im-chooser to graficzne narzędzie do konfiguracji pozwalające na
+wybór metody wprowadzania znaków (Input Method) lub wyłączenie
+użycia IM w środowisku graficznym.
+
+Ten pakiet zawiera aplikację przeznaczoną dla Xfce 4.
 
 %prep
 %setup -q
-%patch0 -p1
 
 %build
-%configure \
-	--with-desktopfile=%{_datadir}/applications/im-chooser.desktop
+%configure
 
 %{__make}
 
@@ -58,8 +69,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %{__make} install \
 	DESTDIR=$RPM_BUILD_ROOT
-
-%{!?with_gtk2:%{__rm} $RPM_BUILD_ROOT%{_libdir}/control-center-1/panels/libim-chooser.{a,la}}
 
 %{__rm} $RPM_BUILD_ROOT%{_libdir}/libimchooseui.{so,la,a}
 
@@ -81,12 +90,14 @@ rm -rf $RPM_BUILD_ROOT
 %doc AUTHORS ChangeLog NEWS README
 %attr(755,root,root) %{_bindir}/im-chooser
 %attr(755,root,root) %{_libdir}/libimchooseui.so.*.*.*
-%attr(755,root,root) %ghost %{_libdir}/libimchooseui.so.[0-9]
+%attr(755,root,root) %ghost %{_libdir}/libimchooseui.so.0
+%{_datadir}/imchooseui
 %{_desktopdir}/im-chooser.desktop
-%{_desktopdir}/xfce4-im-chooser.desktop
 %{_iconsdir}/hicolor/*/apps/im-chooser.png
 
-%files gnome3
+%if %{with xfce}
+%files xfce
 %defattr(644,root,root,755)
-%{_libdir}/control-center-1/panels/libim-chooser.so
-%{_desktopdir}/im-chooser-panel.desktop
+%attr(755,root,root) %{_bindir}/xfce4-im-chooser
+%{_desktopdir}/xfce4-im-chooser.desktop
+%endif
