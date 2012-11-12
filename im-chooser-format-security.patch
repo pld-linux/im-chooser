@@ -56,3 +56,16 @@
  		g_error_free(err);
  		return NULL;
  	}
+--- im-chooser-1.6.1/src/app/main.c~	2012-07-12 13:17:55.000000000 +0200
++++ im-chooser-1.6.1/src/app/main.c	2012-11-12 22:23:24.242685099 +0100
+@@ -92,8 +92,8 @@
+ 						 GTK_DIALOG_MODAL,
+ 						 GTK_MESSAGE_ERROR,
+ 						 GTK_BUTTONS_OK,
+-						 s);
+-	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG (dlg), details);
++						 "%s", s);
++	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG (dlg), "%s", details);
+ 
+ 	/* for GNOME HIG compliance */
+ #if 0
