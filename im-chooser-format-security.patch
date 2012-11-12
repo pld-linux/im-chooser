@@ -69,3 +69,16 @@
  
  	/* for GNOME HIG compliance */
  #if 0
+--- im-chooser-1.6.1/src/xfce/main.c~	2011-08-01 08:36:02.000000000 +0200
++++ im-chooser-1.6.1/src/xfce/main.c	2012-11-12 22:25:32.729347232 +0100
+@@ -94,8 +94,8 @@
+ 						 GTK_DIALOG_MODAL,
+ 						 GTK_MESSAGE_ERROR,
+ 						 GTK_BUTTONS_OK,
+-						 s);
+-	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG (dlg), details);
++						 "%s", s);
++	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG (dlg), "%s", details);
+ 
+ 	/* for GNOME HIG compliance */
+ 	gtk_rc_parse_string("style \"imchoose-ui-message-dialog\" {\n"	\
