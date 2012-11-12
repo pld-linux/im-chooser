@@ -13,6 +13,7 @@ Group:		Applications
 Source0:	http://fedorahosted.org/releases/i/m/im-chooser/%{name}-%{version}.tar.bz2
 # Source0-md5:	83820b110c749c8a5886d7435ec71ebc
 Patch0:		%{name}-imchooserui.patch
+Patch1:		%{name}-format-security.patch
 URL:		http://fedorahosted.org/im-chooser/
 BuildRequires:	glib2-devel >= 1:2.16.0
 BuildRequires:	imsettings-devel >= 1.3.0
@@ -60,6 +61,7 @@ Ten pakiet zawiera aplikację przeznaczoną dla Xfce 4.
 %prep
 %setup -q
 %patch0 -p1
+%patch1 -p1
 
 %build
 %configure \

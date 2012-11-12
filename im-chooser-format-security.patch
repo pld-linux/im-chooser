@@ -1,0 +1,58 @@
+--- im-chooser-1.6.1/libimchooseui/eggsmclient-dbus-gnome.c~	2011-10-07 12:26:11.000000000 +0200
++++ im-chooser-1.6.1/libimchooseui/eggsmclient-dbus-gnome.c	2012-11-12 22:20:30.599358051 +0100
+@@ -77,7 +77,7 @@
+ 										 &err);
+ 
+ 		if (err) {
+-			g_warning(err->message);
++			g_warning("%s", err->message);
+ 			return NULL;
+ 		}
+ 		info = g_dbus_interface_info_ref(introspection_data->interfaces[0]);
+@@ -120,7 +120,7 @@
+ 	if (value)
+ 		g_variant_unref(value);
+ 	if (err) {
+-		g_warning(err->message);
++		g_warning("%s", err->message);
+ 		g_error_free(err);
+ 
+ 		return FALSE;
+@@ -160,7 +160,7 @@
+ 					      NULL,
+ 					      &err);
+ 	if (err) {
+-		g_warning(err->message);
++		g_warning("%s", err->message);
+ 		g_error_free(err);
+ 		return NULL;
+ 	}
+--- im-chooser-1.6.1/libimchooseui/eggsmclient-dbus-kde.c~	2011-10-07 12:27:58.000000000 +0200
++++ im-chooser-1.6.1/libimchooseui/eggsmclient-dbus-kde.c	2012-11-12 22:21:10.332689583 +0100
+@@ -77,7 +77,7 @@
+ 										 &err);
+ 
+ 		if (err) {
+-			g_warning(err->message);
++			g_warning("%s", err->message);
+ 			return NULL;
+ 		}
+ 		info = g_dbus_interface_info_ref(introspection_data->interfaces[0]);
+@@ -112,7 +112,7 @@
+ 	if (value)
+ 		g_variant_unref(value);
+ 	if (err) {
+-		g_warning(err->message);
++		g_warning("%s", err->message);
+ 		g_error_free(err);
+ 
+ 		return FALSE;
+@@ -152,7 +152,7 @@
+ 					      NULL,
+ 					      &err);
+ 	if (err) {
+-		g_warning(err->message);
++		g_warning("%s", err->message);
+ 		g_error_free(err);
+ 		return NULL;
+ 	}
