@@ -6,12 +6,12 @@
 Summary:	Desktop Input Method configuration tool
 Summary(pl.UTF-8):	Narzędzie do konfiguracji metod wprowadzania znaków dla środowiska graficznego
 Name:		im-chooser
-Version:	1.6.1
-Release:	3
+Version:	1.6.2
+Release:	1
 License:	GPL v2
 Group:		Applications
 Source0:	http://fedorahosted.org/releases/i/m/im-chooser/%{name}-%{version}.tar.bz2
-# Source0-md5:	83820b110c749c8a5886d7435ec71ebc
+# Source0-md5:	7ca05d1d360303754d6d62cbfa79bd1c
 Patch0:		%{name}-imchooserui.patch
 Patch1:		%{name}-format-security.patch
 URL:		http://fedorahosted.org/im-chooser/
