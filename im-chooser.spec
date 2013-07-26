@@ -13,6 +13,7 @@ Group:		Applications
 Source0:	http://fedorahosted.org/releases/i/m/im-chooser/%{name}-%{version}.tar.bz2
 # Source0-md5:	fbf6598df98c9992e91aa62b7d33bc1b
 Patch0:		%{name}-imchooserui.patch
+Patch1:		%{name}-format.patch
 URL:		http://fedorahosted.org/im-chooser/
 BuildRequires:	glib2-devel >= 1:2.16.0
 BuildRequires:	imsettings-devel >= 1.3.0
@@ -60,10 +61,12 @@ Ten pakiet zawiera aplikację przeznaczoną dla Xfce 4.
 %prep
 %setup -q
 %patch0 -p1
+%patch1 -p1
 
 %build
 %configure \
-	--disable-silent-rules
+	--disable-silent-rules \
+	--disable-static
 
 %{__make}
 
@@ -73,7 +76,7 @@ rm -rf $RPM_BUILD_ROOT
 %{__make} install \
 	DESTDIR=$RPM_BUILD_ROOT
 
-%{__rm} $RPM_BUILD_ROOT%{_libdir}/libimchooseui.{so,la,a}
+%{__rm} $RPM_BUILD_ROOT%{_libdir}/libimchooseui.{so,la}
 
 %find_lang %{name}
 
