@@ -6,15 +6,14 @@
 Summary:	Desktop Input Method configuration tool
 Summary(pl.UTF-8):	Narzędzie do konfiguracji metod wprowadzania znaków dla środowiska graficznego
 Name:		im-chooser
-Version:	1.6.4
-Release:	6
+Version:	1.7.3
+Release:	1
 License:	GPL v2
 Group:		Applications
-Source0:	http://fedorahosted.org/releases/i/m/im-chooser/%{name}-%{version}.tar.bz2
-# Source0-md5:	fbf6598df98c9992e91aa62b7d33bc1b
+Source0:	http://releases.pagure.org/im-chooser/%{name}-%{version}.tar.bz2
+# Source0-md5:	e878efd93f30d4ee99207840f5ef64e2
 Patch0:		%{name}-imchooserui.patch
-Patch1:		%{name}-format.patch
-URL:		http://fedorahosted.org/im-chooser/
+URL:		http://pagure.io/im-chooser/
 BuildRequires:	glib2-devel >= 1:2.16.0
 BuildRequires:	imsettings-devel >= 1.3.0
 %{?with_xfce:BuildRequires:	libxfce4util-devel}
@@ -61,7 +60,6 @@ Ten pakiet zawiera aplikację przeznaczoną dla Xfce 4.
 %prep
 %setup -q
 %patch0 -p1
-%patch1 -p1
 
 %build
 %configure \
