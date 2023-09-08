@@ -6,17 +6,19 @@
 Summary:	Desktop Input Method configuration tool
 Summary(pl.UTF-8):	Narzędzie do konfiguracji metod wprowadzania znaków dla środowiska graficznego
 Name:		im-chooser
-Version:	1.7.3
+Version:	1.7.4
 Release:	1
 License:	GPL v2
 Group:		Applications
-Source0:	http://releases.pagure.org/im-chooser/%{name}-%{version}.tar.bz2
-# Source0-md5:	e878efd93f30d4ee99207840f5ef64e2
+Source0:	https://releases.pagure.org/im-chooser/%{name}-%{version}.tar.bz2
+# Source0-md5:	ee923ebf5a729e2f2e48887b4a4e9a5d
 Patch0:		%{name}-imchooserui.patch
-URL:		http://pagure.io/im-chooser/
+URL:		https://pagure.io/im-chooser/
+BuildRequires:	gettext-tools >= 0.19.8
 BuildRequires:	glib2-devel >= 1:2.16.0
-BuildRequires:	imsettings-devel >= 1.3.0
+BuildRequires:	imsettings-devel >= 1.8.0
 %{?with_xfce:BuildRequires:	libxfce4util-devel}
+BuildRequires:	pkgconfig
 BuildRequires:	xorg-lib-libSM-devel
 %if %{with gtk2}
 BuildRequires:	gtk+2-devel >= 2:2.16.0
@@ -25,8 +27,8 @@ BuildConflicts:	gtk+3-devel
 BuildRequires:	gtk+3-devel >= 3.0.0
 #BuildRequires:	gnome-control-center-devel >= 3.0.0
 %endif
-Requires:	imsettings >= 1.3.0
-Obsoletes:	im-chooser-gnome3
+Requires:	imsettings >= 1.8.0
+Obsoletes:	im-chooser-gnome3 < 1.5
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
 %description
