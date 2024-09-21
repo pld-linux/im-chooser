@@ -7,7 +7,7 @@ Summary:	Desktop Input Method configuration tool
 Summary(pl.UTF-8):	Narzędzie do konfiguracji metod wprowadzania znaków dla środowiska graficznego
 Name:		im-chooser
 Version:	1.7.4
-Release:	1
+Release:	2
 License:	GPL v2
 Group:		Applications
 Source0:	https://releases.pagure.org/im-chooser/%{name}-%{version}.tar.bz2
