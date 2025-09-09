@@ -1,0 +1,1386 @@
+diff --git a/configure.ac b/configure.ac
+index 96d0486..4032e06 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1,5 +1,5 @@
+ dnl Process this file with autoconf to produce a configure script.
+-AC_INIT([im-chooser], 1.7.4, [https://pagure.io/im-chooser/issues])
++AC_INIT([im-chooser], 1.7.5, [https://pagure.io/im-chooser/issues])
+ 
+ . `dirname $0`/requires
+ 
+diff --git a/libimchooseui/Makefile.am b/libimchooseui/Makefile.am
+index 959fe91..523ace9 100644
+--- a/libimchooseui/Makefile.am
++++ b/libimchooseui/Makefile.am
+@@ -75,6 +75,7 @@ libeggsmclient_la_SOURCES =					\
+ 	eggsmclient-private.h					\
+ 	eggsmclient-dbus-gnome.c				\
+ 	eggsmclient-dbus-kde.c					\
++	eggsmclient-dbus-kde5.c					\
+ 	eggsmclient-dbus-xfce.c					\
+ 	eggsmclient-xsmp.c					\
+ 	$(NULL)
+diff --git a/libimchooseui/eggsmclient-dbus-kde5.c b/libimchooseui/eggsmclient-dbus-kde5.c
+new file mode 100644
+index 0000000..1ed130d
+--- /dev/null
++++ b/libimchooseui/eggsmclient-dbus-kde5.c
+@@ -0,0 +1,203 @@
++/*
++ * Copyright (C) 2008,2011 Red Hat, Inc.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Library General Public
++ * License as published by the Free Software Foundation; either
++ * version 2 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Library General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library; if not, write to the
++ * Free Software Foundation, Inc., 51 Franklin Street, Fifth
++ * Floor, Boston, MA  02110-1301  USA
++ */
++
++#include "config.h"
++
++#include "eggsmclient.h"
++#include "eggsmclient-private.h"
++
++#include "eggdesktopfile.h"
++
++#include <gio/gio.h>
++
++#define KSM_DBUS_NAME      "org.kde.Shutdown"
++#define KSM_DBUS_PATH      "/Shutdown"
++#define KSM_DBUS_INTERFACE "org.kde.Shutdown"
++
++#define EGG_TYPE_SM_CLIENT_KDBUS5            (egg_sm_client_dbus_kde5_get_type ())
++#define EGG_SM_CLIENT_KDBUS5(obj)            (G_TYPE_CHECK_INSTANCE_CAST ((obj), EGG_TYPE_SM_CLIENT_KDBUS5, EggSMClientKDBus5))
++#define EGG_SM_CLIENT_KDBUS5_CLASS(klass)    (G_TYPE_CHECK_CLASS_CAST ((klass), EGG_TYPE_SM_CLIENT_KDBUS5, EggSMClientKDBus5Class))
++#define EGG_IS_SM_CLIENT_KDBUS5(obj)         (G_TYPE_CHECK_INSTANCE_TYPE ((obj), EGG_TYPE_SM_CLIENT_KDBUS5))
++#define EGG_IS_SM_CLIENT_KDBUS5_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE ((klass), EGG_TYPE_SM_CLIENT_KDBUS5))
++#define EGG_SM_CLIENT_KDBUS5_GET_CLASS(obj)  (G_TYPE_INSTANCE_GET_CLASS ((obj), EGG_TYPE_SM_CLIENT_KDBUS5, EggSMClientKDBus5Class))
++
++typedef struct _EggSMClientKDBus5        EggSMClientKDBus5;
++typedef struct _EggSMClientKDBus5Class   EggSMClientKDBus5Class;
++
++struct _EggSMClientKDBus5
++{
++	EggSMClient parent;
++
++	GDBusProxy *sm_proxy;
++};
++
++struct _EggSMClientKDBus5Class
++{
++	EggSMClientClass parent_class;
++};
++
++G_DEFINE_TYPE (EggSMClientKDBus5, egg_sm_client_dbus_kde5, EGG_TYPE_SM_CLIENT)
++
++	static const gchar introspection_xml[] =
++	"<node name='/Shutdown'>"
++	"  <interface name='org.kde.Shutdown'>"
++	"    <method name='logout' />"
++	"  </interface>"
++	"</node>";
++
++static GDBusInterfaceInfo *
++sm_client_kdbus5_get_interface_info(void)
++{
++	static gsize has_info = 0;
++	static GDBusInterfaceInfo *info = NULL;
++
++	if (g_once_init_enter(&has_info)) {
++		GError *err = NULL;
++		GDBusNodeInfo *introspection_data = g_dbus_node_info_new_for_xml(introspection_xml,
++										 &err);
++
++		if (err) {
++			g_warning("%s", err->message);
++			return NULL;
++		}
++		info = g_dbus_interface_info_ref(introspection_data->interfaces[0]);
++		g_dbus_node_info_unref(introspection_data);
++
++		g_once_init_leave(&has_info, 1);
++	}
++
++	return info;
++}
++
++static gboolean
++sm_client_dbus_kde5_end_session(EggSMClient         *client,
++				EggSMClientEndStyle  style,
++				gboolean             request_confirmation)
++{
++	EggSMClientKDBus5 *dbus = EGG_SM_CLIENT_KDBUS5 (client);
++	GVariant *value;
++	GError *err = NULL;
++
++	switch (style) {
++	    case EGG_SM_CLIENT_END_SESSION_DEFAULT:
++	    case EGG_SM_CLIENT_LOGOUT:
++		    value = g_dbus_proxy_call_sync(dbus->sm_proxy,
++						   "logout",
++						   NULL,
++						   G_DBUS_CALL_FLAGS_NONE,
++						   -1,
++						   NULL,
++						   &err);
++		    break;
++	    case EGG_SM_CLIENT_REBOOT:
++		    value = g_dbus_proxy_call_sync(dbus->sm_proxy,
++						   "logoutAndReboot",
++						   NULL,
++						   G_DBUS_CALL_FLAGS_NONE,
++						   -1,
++						   NULL,
++						   &err);
++		    break;
++	    case EGG_SM_CLIENT_SHUTDOWN:
++		    value = g_dbus_proxy_call_sync(dbus->sm_proxy,
++						   "logoutAndShutdown",
++						   NULL,
++						   G_DBUS_CALL_FLAGS_NONE,
++						   -1,
++						   NULL,
++						   &err);
++		    break;
++	}
++	if (value)
++		g_variant_unref(value);
++	if (err) {
++		g_warning("%s", err->message);
++		g_error_free(err);
++
++		return FALSE;
++	}
++
++	return TRUE;
++}
++
++static void
++egg_sm_client_dbus_kde5_init(EggSMClientKDBus5 *dbus)
++{
++}
++
++static void
++egg_sm_client_dbus_kde5_class_init(EggSMClientKDBus5Class *klass)
++{
++	EggSMClientClass *sm_client_class = EGG_SM_CLIENT_CLASS (klass);
++
++	sm_client_class->end_session = sm_client_dbus_kde5_end_session;
++}
++
++EggSMClient *
++egg_sm_client_dbus_kde5_new(void)
++{
++	GDBusProxy *proxy;
++	GDBusConnection *connection;
++	EggSMClientKDBus5 *dbus;
++	GError *err = NULL;
++	GVariant *value = NULL;
++
++	proxy = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION,
++					      G_DBUS_PROXY_FLAGS_NONE,
++					      sm_client_kdbus5_get_interface_info(),
++					      KSM_DBUS_NAME,
++					      KSM_DBUS_PATH,
++					      KSM_DBUS_INTERFACE,
++					      NULL,
++					      &err);
++	if (err) {
++		g_warning("%s", err->message);
++		g_error_free(err);
++		return NULL;
++	}
++	connection = g_dbus_proxy_get_connection(proxy);
++	value = g_dbus_connection_call_sync(connection,
++					    KSM_DBUS_NAME,
++					    KSM_DBUS_PATH,
++					    "org.freedesktop.DBus.Peer",
++					    "Ping",
++					    NULL,
++					    NULL,
++					    G_DBUS_CALL_FLAGS_NO_AUTO_START,
++					    -1,
++					    NULL,
++					    &err);
++	if (err || !value) {
++		goto bail;
++	}
++
++	dbus = g_object_new(EGG_TYPE_SM_CLIENT_KDBUS5, NULL);
++	dbus->sm_proxy = proxy;
++
++	return EGG_SM_CLIENT (dbus);
++  bail:
++	if (value)
++		g_variant_unref(value);
++	if (err)
++		g_error_free(err);
++	if (proxy)
++		g_object_unref(proxy);
++
++	return NULL;
++}
+diff --git a/libimchooseui/eggsmclient-private.h b/libimchooseui/eggsmclient-private.h
+index 6a2edbc..973c9a7 100644
+--- a/libimchooseui/eggsmclient-private.h
++++ b/libimchooseui/eggsmclient-private.h
+@@ -46,6 +46,8 @@ GType        egg_sm_client_dbus_gnome_get_type (void);
+ EggSMClient *egg_sm_client_dbus_gnome_new      (void);
+ GType        egg_sm_client_dbus_kde_get_type   (void);
+ EggSMClient *egg_sm_client_dbus_kde_new        (void);
++GType        egg_sm_client_dbus_kde5_get_type  (void);
++EggSMClient *egg_sm_client_dbus_kde5_new       (void);
+ GType        egg_sm_client_dbus_xfce_get_type  (void);
+ EggSMClient *egg_sm_client_dbus_xfce_new       (void);
+ # endif
+diff --git a/libimchooseui/eggsmclient.c b/libimchooseui/eggsmclient.c
+index bb8efd1..fbdc02c 100644
+--- a/libimchooseui/eggsmclient.c
++++ b/libimchooseui/eggsmclient.c
+@@ -112,7 +112,7 @@ egg_sm_client_class_init (EggSMClientClass *klass)
+    * handling this signal; if the user has requested that the session
+    * be saved when logging out, then ::save_state will be emitted
+    * separately.
+-   * 
++   *
+    * If the application agrees to quit, it should then wait for either
+    * the ::quit_cancelled or ::quit signals to be emitted.
+    **/
+@@ -342,6 +342,8 @@ egg_sm_client_get (void)
+ 	   */
+ #ifdef EGG_SM_CLIENT_BACKEND_DBUS
+ 	  global_client = egg_sm_client_dbus_gnome_new ();
++	  if (!global_client)
++	    global_client = egg_sm_client_dbus_kde5_new ();
+ 	  if (!global_client)
+ 	    global_client = egg_sm_client_dbus_kde_new ();
+ 	  if (!global_client)
+diff --git a/libimchooseui/imchooseui.c b/libimchooseui/imchooseui.c
+index af3b68c..f9d5884 100644
+--- a/libimchooseui/imchooseui.c
++++ b/libimchooseui/imchooseui.c
+@@ -1,21 +1,21 @@
+ /* -*- Mode: C; tab-width: 8; indent-tabs-mode: t; c-basic-offset: 8 -*- */
+-/* 
++/*
+  * imchooseui.c
+  * Copyright (C) 2007-2021 Red Hat, Inc. All rights reserved.
+- * 
++ *
+  * Authors:
+  *   Akira TAGOH  <tagoh@redhat.com>
+- * 
++ *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+  * the Free Software Foundation; either version 2 of the License, or
+  * (at your option) any later version.
+- * 
++ *
+  * This program is distributed in the hope that it will be useful,
+  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  * GNU General Public License for more details.
+- * 
++ *
+  * You should have received a copy of the GNU General Public License
+  * along with this program; if not, write to the Free Software
+  * Foundation, Inc., 51 Franklin Street, Fifth
+@@ -443,7 +443,19 @@ _imchoose_ui_switch_im_start(IMChooseUI  *ui,
+ 			     const gchar *imname)
+ {
+ 	IMChooseUIPrivate *priv = imchoose_ui_get_instance_private(ui);
++	GError *err = NULL;
+ 
++	if (!imsettings_client_is_action_needed(priv->client, imname, NULL, &err))
++	{
++		if (err)
++			g_warning("%s", err->message);
++		g_signal_emit(ui, signals[SIG_SHOW_ERROR], 0,
++			      _("Failed to switch Input Method"),
++			      _("Input Method doesn't support im-chooser on this desktop session"));
++		if (err)
++			g_error_free(err);
++		return;
++	}
+ 	_imchoose_ui_show_progress(ui, _("Switching Input Method - %s"), imname);
+ 	g_free(priv->current_im);
+ 	priv->current_im = g_strdup(imname);
+diff --git a/po/en_GB.po b/po/en_GB.po
+index 30daba9..df971d5 100644
+--- a/po/en_GB.po
++++ b/po/en_GB.po
+@@ -3,24 +3,26 @@
+ # This file is distributed under the same license as the PACKAGE package.
+ #
+ # Abigail Brady <morwen@evilmagic.org>, Bastien Nocera <hadess@hadess.net>, 2007.
++# Andi Chandler <andi@gowling.com>, 2023.
+ msgid ""
+ msgstr ""
+ "Project-Id-Version: PACKAGE VERSION\n"
+ "Report-Msgid-Bugs-To: https://pagure.io/im-chooser/issues\n"
+ "POT-Creation-Date: 2021-12-02 17:20+0900\n"
+-"PO-Revision-Date: 2014-12-16 08:22-0500\n"
+-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
+-"Language-Team: LANGUAGE <LL@li.org>\n"
++"PO-Revision-Date: 2023-03-22 20:20+0000\n"
++"Last-Translator: Andi Chandler <andi@gowling.com>\n"
++"Language-Team: English (United Kingdom) <https://translate.fedoraproject.org/"
++"projects/im-chooser/master/en_GB/>\n"
+ "Language: en_GB\n"
+ "MIME-Version: 1.0\n"
+ "Content-Type: text/plain; charset=UTF-8\n"
+ "Content-Transfer-Encoding: 8bit\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+-"X-Generator: Zanata 4.6.2\n"
++"Plural-Forms: nplurals=2; plural=n != 1;\n"
++"X-Generator: Weblate 4.15.2\n"
+ 
+ #: libimchooseui/eggdesktopfile.c:165
+ msgid "File is not a valid .desktop file"
+-msgstr ""
++msgstr "File is not a valid .desktop file"
+ 
+ #. translators: 'Version' is from a desktop file, and
+ #. * should not be translated. '%s' would probably be a
+@@ -28,59 +30,59 @@ msgstr ""
+ #: libimchooseui/eggdesktopfile.c:191
+ #, c-format
+ msgid "Unrecognized desktop file Version '%s'"
+-msgstr ""
++msgstr "Unrecognised desktop file Version '%s'"
+ 
+ #: libimchooseui/eggdesktopfile.c:974
+ #, c-format
+ msgid "Starting %s"
+-msgstr ""
++msgstr "Starting %s"
+ 
+ #: libimchooseui/eggdesktopfile.c:1116
+ msgid "Application does not accept documents on command line"
+-msgstr ""
++msgstr "Application does not accept documents on command line"
+ 
+ #: libimchooseui/eggdesktopfile.c:1184
+ #, c-format
+ msgid "Unrecognized launch option: %d"
+-msgstr ""
++msgstr "Unrecognised launch option: %d"
+ 
+ #. translators: The 'Type=Link' string is found in a
+ #. * desktop file, and should not be translated.
+ #: libimchooseui/eggdesktopfile.c:1391
+ msgid "Can't pass document URIs to a 'Type=Link' desktop entry"
+-msgstr ""
++msgstr "Can't pass document URIs to a 'Type=Link' desktop entry"
+ 
+ #: libimchooseui/eggdesktopfile.c:1412
+ msgid "Not a launchable item"
+-msgstr ""
++msgstr "Not a launchable item"
+ 
+ #: libimchooseui/eggsmclient.c:222
+ msgid "Disable connection to session manager"
+-msgstr ""
++msgstr "Disable connection to session manager"
+ 
+ #: libimchooseui/eggsmclient.c:225
+ msgid "Specify file containing saved configuration"
+-msgstr ""
++msgstr "Specify file containing saved configuration"
+ 
+ #: libimchooseui/eggsmclient.c:225
+ msgid "FILE"
+-msgstr ""
++msgstr "FILE"
+ 
+ #: libimchooseui/eggsmclient.c:228
+ msgid "Specify session management ID"
+-msgstr ""
++msgstr "Specify session management ID"
+ 
+ #: libimchooseui/eggsmclient.c:228
+ msgid "ID"
+-msgstr ""
++msgstr "ID"
+ 
+ #: libimchooseui/eggsmclient.c:249
+ msgid "Session management options:"
+-msgstr ""
++msgstr "Session management options:"
+ 
+ #: libimchooseui/eggsmclient.c:250
+ msgid "Show session management options"
+-msgstr ""
++msgstr "Show session management options"
+ 
+ #: libimchooseui/imchoose.ui:8
+ msgid "Work in progress..."
+@@ -88,7 +90,7 @@ msgstr "Work in progress..."
+ 
+ #: libimchooseui/imchoose.ui:45 libimchooseui/imchoose.ui:174
+ msgid "label"
+-msgstr ""
++msgstr "label"
+ 
+ #: libimchooseui/imchoose.ui:193
+ msgid "<b>Input Method</b>"
+@@ -96,7 +98,7 @@ msgstr "<b>Input Method</b>"
+ 
+ #: libimchooseui/imchooseui.c:164
+ msgid "No Input Method"
+-msgstr ""
++msgstr "No Input Method"
+ 
+ #: libimchooseui/imchooseui.c:166
+ #, c-format
+@@ -114,26 +116,28 @@ msgstr "(recommended)"
+ #: libimchooseui/imchooseui.c:193
+ #, c-format
+ msgid "<a href=\"imsettings-prefs:///%s\">Preferences...</a>"
+-msgstr ""
++msgstr "<a href=\"imsettings-prefs:///%s\">Preferences...</a>"
+ 
+ #: libimchooseui/imchooseui.c:242
+ msgid "IMSettings is disabled on the system."
+-msgstr ""
++msgstr "IMSettings is disabled on the system."
+ 
+ #: libimchooseui/imchooseui.c:247
+ msgid "Unable to create a client instance."
+-msgstr ""
++msgstr "Unable to create a client instance."
+ 
+ #: libimchooseui/imchooseui.c:256
+ #, c-format
+ msgid "Unable to communicate to IMSettings service: %s"
+-msgstr ""
++msgstr "Unable to communicate to IMSettings service: %s"
+ 
+ #: libimchooseui/imchooseui.c:276
+ msgid ""
+ "Current desktop isn't supported. Please follow instructions on your desktop "
+ "to enable Input Method."
+ msgstr ""
++"Current desktop isn't supported. Please follow instructions on your desktop "
++"to enable Input Method."
+ 
+ #: libimchooseui/imchooseui.c:343
+ msgid "Please install any input methods before running if you like."
+@@ -145,20 +149,20 @@ msgstr "Unable to get the information"
+ 
+ #: libimchooseui/imchooseui.c:426
+ msgid "Unable to invoke the preference tool"
+-msgstr ""
++msgstr "Unable to invoke the preference tool"
+ 
+ #: libimchooseui/imchooseui.c:447
+ #, c-format
+ msgid "Switching Input Method - %s"
+-msgstr ""
++msgstr "Switching Input Method - %s"
+ 
+ #: libimchooseui/imchooseui.c:469
+ msgid "Unknown error during finalizing the request of SwitchIM"
+-msgstr ""
++msgstr "Unknown error during finalising the request of SwitchIM"
+ 
+ #: libimchooseui/imchooseui.c:476
+ msgid "Failed to switch Input Method"
+-msgstr ""
++msgstr "Failed to switch Input Method"
+ 
+ #: libimchooseui/imchooseui.c:657
+ msgid "X applications"
+@@ -214,35 +218,37 @@ msgid ""
+ "<small><i>Note: this change will not take effect until your next log in%s</"
+ "i></small>"
+ msgstr ""
++"<small><i>Note: this change will not take effect until your next log "
++"in%s</i></small>"
+ 
+ #: libimchooseui/imchooseui.c:707
+ msgid "Unable to obtain the object for note"
+-msgstr ""
++msgstr "Unable to obtain the object for note"
+ 
+ #: libimchooseui/imchooseui.c:713
+ msgid "Unable to obtain the object for tree"
+-msgstr ""
++msgstr "Unable to obtain the object for tree"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:241
+ msgid "Widget"
+-msgstr ""
++msgstr "Widget"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:242
+ msgid "Widget to contain in the cell"
+-msgstr ""
++msgstr "Widget to contain in the cell"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:248
+ msgid "Spacing"
+-msgstr ""
++msgstr "Spacing"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:249
+ msgid "The amount of space between label"
+-msgstr ""
++msgstr "The amount of space between label"
+ 
+ #: src/app/im-chooser.desktop.in:4 src/app/main.c:212 src/xfce/main.c:262
+ #: src/xfce/xfce4-im-chooser.desktop.in:6
+ msgid "Input Method Selector"
+-msgstr ""
++msgstr "Input Method Selector"
+ 
+ #: src/app/im-chooser.desktop.in:5 src/xfce/xfce4-im-chooser.desktop.in:7
+ msgid ""
+@@ -255,45 +261,45 @@ msgstr ""
+ #: src/app/main.c:98
+ #, c-format
+ msgid "Please check <a href=\"file://%s\">%s</a> for more details"
+-msgstr ""
++msgstr "Please check <a href=\"file://%s\">%s</a> for more details"
+ 
+ #: src/app/main.c:146 src/xfce/main.c:140
+ msgid "Could not connect to the session manager"
+-msgstr ""
++msgstr "Could not connect to the session manager"
+ 
+ #: src/app/main.c:165 src/xfce/main.c:160
+ msgid "[options...]"
+-msgstr ""
++msgstr "[options...]"
+ 
+ #: src/app/main.c:185 src/xfce/main.c:179
+ #, c-format
+ msgid "Could not parse arguments: %s\n"
+-msgstr ""
++msgstr "Could not parse arguments: %s\n"
+ 
+ #: src/app/main.c:202 src/xfce/main.c:238 src/xfce/main.c:253
+ msgid "No input method is available"
+-msgstr ""
++msgstr "No input method is available"
+ 
+ #: src/app/main.c:205 src/xfce/main.c:241 src/xfce/main.c:256
+ msgid "Unrecoverable error"
+-msgstr ""
++msgstr "Unrecoverable error"
+ 
+ #: src/app/main.c:216 src/xfce/main.c:266
+ msgid "_Close"
+-msgstr ""
++msgstr "_Close"
+ 
+ #: src/app/main.c:217 src/xfce/main.c:267
+ msgid "_Log Out"
+-msgstr ""
++msgstr "_Log Out"
+ 
+ #: src/app/main.c:229 src/xfce/main.c:279
+ msgid "_OK"
+-msgstr ""
++msgstr "_OK"
+ 
+ #: src/xfce/main.c:163
+ msgid "Settings manager socket"
+-msgstr ""
++msgstr "Settings manager socket"
+ 
+ #: src/xfce/main.c:163
+ msgid "SOCKET ID"
+-msgstr ""
++msgstr "SOCKET ID"
+diff --git a/po/ka.po b/po/ka.po
+index e5b933f..206355d 100644
+--- a/po/ka.po
++++ b/po/ka.po
+@@ -3,24 +3,26 @@
+ # This file is distributed under the same license as the PACKAGE package.
+ #
+ # George Machitidze <giomac@gmail.com>, 2007.
++# Temuri Doghonadze <temuri.doghonadze@gmail.com>, 2022.
+ msgid ""
+ msgstr ""
+ "Project-Id-Version: PACKAGE VERSION\n"
+ "Report-Msgid-Bugs-To: https://pagure.io/im-chooser/issues\n"
+ "POT-Creation-Date: 2021-12-02 17:20+0900\n"
+-"PO-Revision-Date: 2014-12-16 08:24-0500\n"
+-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
+-"Language-Team: LANGUAGE <LL@li.org>\n"
++"PO-Revision-Date: 2022-06-19 16:25+0000\n"
++"Last-Translator: Temuri Doghonadze <temuri.doghonadze@gmail.com>\n"
++"Language-Team: Georgian <https://translate.fedoraproject.org/projects/"
++"im-chooser/master/ka/>\n"
+ "Language: ka\n"
+ "MIME-Version: 1.0\n"
+ "Content-Type: text/plain; charset=UTF-8\n"
+ "Content-Transfer-Encoding: 8bit\n"
+-"Plural-Forms: nplurals=1; plural=0\n"
+-"X-Generator: Zanata 4.6.2\n"
++"Plural-Forms: nplurals=1; plural=0;\n"
++"X-Generator: Weblate 4.13\n"
+ 
+ #: libimchooseui/eggdesktopfile.c:165
+ msgid "File is not a valid .desktop file"
+-msgstr ""
++msgstr "ფაილი არასწორი .desktop ფაილია"
+ 
+ #. translators: 'Version' is from a desktop file, and
+ #. * should not be translated. '%s' would probably be a
+@@ -28,67 +30,68 @@ msgstr ""
+ #: libimchooseui/eggdesktopfile.c:191
+ #, c-format
+ msgid "Unrecognized desktop file Version '%s'"
+-msgstr ""
++msgstr ".desktop ფაილის უცნობი ვერსია '%s'"
+ 
+ #: libimchooseui/eggdesktopfile.c:974
+ #, c-format
+ msgid "Starting %s"
+-msgstr ""
++msgstr "%s-ის გაშვება"
+ 
+ #: libimchooseui/eggdesktopfile.c:1116
+ msgid "Application does not accept documents on command line"
+-msgstr ""
++msgstr "აპლიკაციას დოკუმენტების ბრძანების სტრიქონიდან აღება არ შეუძლია"
+ 
+ #: libimchooseui/eggdesktopfile.c:1184
+ #, c-format
+ msgid "Unrecognized launch option: %d"
+-msgstr ""
++msgstr "გაშვების უცნობი პარამეტრი: %d"
+ 
+ #. translators: The 'Type=Link' string is found in a
+ #. * desktop file, and should not be translated.
+ #: libimchooseui/eggdesktopfile.c:1391
+ msgid "Can't pass document URIs to a 'Type=Link' desktop entry"
+ msgstr ""
++"დოკუმენტის URI-ების გადაცემა დესკტოპის ჩანაწერში „Type=Link“ შეუძლებელია"
+ 
+ #: libimchooseui/eggdesktopfile.c:1412
+ msgid "Not a launchable item"
+-msgstr ""
++msgstr "არაგაშვებადი ელემენტი"
+ 
+ #: libimchooseui/eggsmclient.c:222
+ msgid "Disable connection to session manager"
+-msgstr ""
++msgstr "სესიების მმართველთან შეერთების გათიშვა"
+ 
+ #: libimchooseui/eggsmclient.c:225
+ msgid "Specify file containing saved configuration"
+-msgstr ""
++msgstr "შენახული კონფიგურაციის მატარებელი ფაილის მითითება"
+ 
+ #: libimchooseui/eggsmclient.c:225
+ msgid "FILE"
+-msgstr ""
++msgstr "ფაილი"
+ 
+ #: libimchooseui/eggsmclient.c:228
+ msgid "Specify session management ID"
+-msgstr ""
++msgstr "მიუთითეთ სესიის მართვის ID"
+ 
+ #: libimchooseui/eggsmclient.c:228
+ msgid "ID"
+-msgstr ""
++msgstr "ID"
+ 
+ #: libimchooseui/eggsmclient.c:249
+ msgid "Session management options:"
+-msgstr ""
++msgstr "სესიების მმართველის პარამეტრები:"
+ 
+ #: libimchooseui/eggsmclient.c:250
+ msgid "Show session management options"
+-msgstr ""
++msgstr "სესიების მმართველის პარამეტრების ჩვენება"
+ 
+ #: libimchooseui/imchoose.ui:8
+ msgid "Work in progress..."
+-msgstr ""
++msgstr "მიმდინარეობს სამუშაოები..."
+ 
+ #: libimchooseui/imchoose.ui:45 libimchooseui/imchoose.ui:174
+ msgid "label"
+-msgstr ""
++msgstr "ჭდე"
+ 
+ #: libimchooseui/imchoose.ui:193
+ msgid "<b>Input Method</b>"
+@@ -96,81 +99,83 @@ msgstr "<b>შეყვანის მეთოდი</b>"
+ 
+ #: libimchooseui/imchooseui.c:164
+ msgid "No Input Method"
+-msgstr ""
++msgstr "შეყვანის მეთოდის გარეშე"
+ 
+ #: libimchooseui/imchooseui.c:166
+ #, c-format
+ msgid "Use %s"
+-msgstr ""
++msgstr "%s-ის გამოყენება"
+ 
+ #: libimchooseui/imchooseui.c:173
+ msgid " (legacy)"
+-msgstr ""
++msgstr " (მოძველებული)"
+ 
+ #: libimchooseui/imchooseui.c:175
+ msgid " (recommended)"
+-msgstr ""
++msgstr " (რეკომენდებული)"
+ 
+ #: libimchooseui/imchooseui.c:193
+ #, c-format
+ msgid "<a href=\"imsettings-prefs:///%s\">Preferences...</a>"
+-msgstr ""
++msgstr "<a href=\"imsettings-prefs:///%s\">მორგება...</a>"
+ 
+ #: libimchooseui/imchooseui.c:242
+ msgid "IMSettings is disabled on the system."
+-msgstr ""
++msgstr "ამ სისტემაში IMSettings გათიშულია."
+ 
+ #: libimchooseui/imchooseui.c:247
+ msgid "Unable to create a client instance."
+-msgstr ""
++msgstr "კლიენტის გაშვებული ასლის შექმნა."
+ 
+ #: libimchooseui/imchooseui.c:256
+ #, c-format
+ msgid "Unable to communicate to IMSettings service: %s"
+-msgstr ""
++msgstr "IMSettings-ის სერვისთან ურთიერთობის პრობლემა: %s"
+ 
+ #: libimchooseui/imchooseui.c:276
+ msgid ""
+ "Current desktop isn't supported. Please follow instructions on your desktop "
+ "to enable Input Method."
+ msgstr ""
++"მიმდინარე სამუშაო მაგიდა მხარდაუჭერელია. შეყვანის მეთოდის ჩასართავად "
++"მიჰყევით ინსტრუქციებს."
+ 
+ #: libimchooseui/imchooseui.c:343
+ msgid "Please install any input methods before running if you like."
+-msgstr ""
++msgstr "თუ გსურთ, დააყენეთ შეყვანის ნებისმიერი მეთოდი გაშვებამდე."
+ 
+ #: libimchooseui/imchooseui.c:413
+ msgid "Unable to get the information"
+-msgstr ""
++msgstr "ინფორმაციის მიღების შეცდომა"
+ 
+ #: libimchooseui/imchooseui.c:426
+ msgid "Unable to invoke the preference tool"
+-msgstr ""
++msgstr "პარამეტრების ფანჯრის გახსნის შეცდომა"
+ 
+ #: libimchooseui/imchooseui.c:447
+ #, c-format
+ msgid "Switching Input Method - %s"
+-msgstr ""
++msgstr "შეყვანის მეთოდის გადართვა - %s"
+ 
+ #: libimchooseui/imchooseui.c:469
+ msgid "Unknown error during finalizing the request of SwitchIM"
+-msgstr ""
++msgstr "შეცდომა SwitchIM-ის მოთხოვნის დასრულებისას"
+ 
+ #: libimchooseui/imchooseui.c:476
+ msgid "Failed to switch Input Method"
+-msgstr ""
++msgstr "შეყვანის მეთოდის გადართვის შეცდომა"
+ 
+ #: libimchooseui/imchooseui.c:657
+ msgid "X applications"
+-msgstr ""
++msgstr "X-ის აპლიკაციები"
+ 
+ #: libimchooseui/imchooseui.c:658
+ msgid "GTK+ applications"
+-msgstr ""
++msgstr "GTK+ აპლიკაციები"
+ 
+ #: libimchooseui/imchooseui.c:659
+ msgid "Qt applications"
+-msgstr ""
++msgstr "Qt აპლიკაციები"
+ 
+ # This will be displayed like "<small><i>Note: this change will not take
+ # effect until your next log in, except X applications and Qt
+@@ -188,7 +193,7 @@ msgstr ""
+ #: libimchooseui/imchooseui.c:677
+ #, c-format
+ msgid ", except %s and %s"
+-msgstr ""
++msgstr ", %s-ის და %s-ის გარდა"
+ 
+ # This will be displayed like "<small><i>Note: this change will not take
+ # effect until your next log in, except X applications</i></small>"
+@@ -203,7 +208,7 @@ msgstr ""
+ #: libimchooseui/imchooseui.c:690
+ #, c-format
+ msgid ", except %s"
+-msgstr ""
++msgstr ", %s-ის გარდა"
+ 
+ # This will be displayed like "<small><i>Note: this change will not take
+ # effect until your next log in, except GTK+ applications</i></small>"
+@@ -214,84 +219,88 @@ msgid ""
+ "<small><i>Note: this change will not take effect until your next log in%s</"
+ "i></small>"
+ msgstr ""
++"<small><i>შენიშვნა: ეს ცვლილება ძალაში მხოლოდ შემდეგი შემოსვლისას "
++"შევა%s</i></small>"
+ 
+ #: libimchooseui/imchooseui.c:707
+ msgid "Unable to obtain the object for note"
+-msgstr ""
++msgstr "შენიშვნის ობიექტის მიღების შეცდომა"
+ 
+ #: libimchooseui/imchooseui.c:713
+ msgid "Unable to obtain the object for tree"
+-msgstr ""
++msgstr "ხის ობიექტის მიღების შეცდომა"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:241
+ msgid "Widget"
+-msgstr ""
++msgstr "ვიჯეტი"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:242
+ msgid "Widget to contain in the cell"
+-msgstr ""
++msgstr "ვიჯეტის შემცველი უჯრედი"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:248
+ msgid "Spacing"
+-msgstr ""
++msgstr "გამოტოვება"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:249
+ msgid "The amount of space between label"
+-msgstr ""
++msgstr "ჭდეებს შუა გამოტოვებული ადგილი"
+ 
+ #: src/app/im-chooser.desktop.in:4 src/app/main.c:212 src/xfce/main.c:262
+ #: src/xfce/xfce4-im-chooser.desktop.in:6
+ msgid "Input Method Selector"
+-msgstr ""
++msgstr "შეყვანის მეთოდის არჩევა"
+ 
+ #: src/app/im-chooser.desktop.in:5 src/xfce/xfce4-im-chooser.desktop.in:7
+ msgid ""
+ "Choose the input method to be used or disable the input method usage on the "
+ "desktop"
+ msgstr ""
++"აირჩიეთ გამოსაყენებელი შეყვანის მეთოდი ან გამორთეთ შეყვანის მეთოდის "
++"გამოყენება სამუშაო მაგიდაზე"
+ 
+ #: src/app/main.c:98
+ #, c-format
+ msgid "Please check <a href=\"file://%s\">%s</a> for more details"
+-msgstr ""
++msgstr "მეტი დეტალებისთვის იხილეთ <a href=\"file://%s\">%s</a>"
+ 
+ #: src/app/main.c:146 src/xfce/main.c:140
+ msgid "Could not connect to the session manager"
+-msgstr ""
++msgstr "სესიებთან მმართველთან მიერთების შეცდომა"
+ 
+ #: src/app/main.c:165 src/xfce/main.c:160
+ msgid "[options...]"
+-msgstr ""
++msgstr "[პარამეტრები...]"
+ 
+ #: src/app/main.c:185 src/xfce/main.c:179
+ #, c-format
+ msgid "Could not parse arguments: %s\n"
+-msgstr ""
++msgstr "არგუმენტების დამუშავების შეცდომა: %s\n"
+ 
+ #: src/app/main.c:202 src/xfce/main.c:238 src/xfce/main.c:253
+ msgid "No input method is available"
+-msgstr ""
++msgstr "შეყვანის მეთოდები ხელმიუწვდომელია"
+ 
+ #: src/app/main.c:205 src/xfce/main.c:241 src/xfce/main.c:256
+ msgid "Unrecoverable error"
+-msgstr ""
++msgstr "აღუდგენელი შეცდომა"
+ 
+ #: src/app/main.c:216 src/xfce/main.c:266
+ msgid "_Close"
+-msgstr ""
++msgstr "და_კეტვა"
+ 
+ #: src/app/main.c:217 src/xfce/main.c:267
+ msgid "_Log Out"
+-msgstr ""
++msgstr "_გასვლა"
+ 
+ #: src/app/main.c:229 src/xfce/main.c:279
+ msgid "_OK"
+-msgstr ""
++msgstr "_დიახ"
+ 
+ #: src/xfce/main.c:163
+ msgid "Settings manager socket"
+-msgstr ""
++msgstr "პარამეტრების მართვის სოკეტი"
+ 
+ #: src/xfce/main.c:163
+ msgid "SOCKET ID"
+-msgstr ""
++msgstr "სოკეტის ID"
+diff --git a/po/pa.po b/po/pa.po
+index b7d7d0e..0807c63 100644
+--- a/po/pa.po
++++ b/po/pa.po
+@@ -7,21 +7,22 @@
+ # Akira  <akira+transifex@tagoh.org>, 2011.
+ # A S Alam <apreet.alam@gmail.com>, 2011.
+ # Translators:
++# A S Alam <amanpreet.alam@gmail.com>, 2022.
+ msgid ""
+ msgstr ""
+ "Project-Id-Version: PACKAGE VERSION\n"
+ "Report-Msgid-Bugs-To: https://pagure.io/im-chooser/issues\n"
+ "POT-Creation-Date: 2021-12-02 17:20+0900\n"
+-"PO-Revision-Date: 2014-12-16 08:25-0500\n"
+-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
+-"Language-Team: Panjabi (Punjabi) (http://www.transifex.net/projects/p/im-"
+-"chooser/team/pa/)\n"
++"PO-Revision-Date: 2022-04-18 16:17+0000\n"
++"Last-Translator: A S Alam <amanpreet.alam@gmail.com>\n"
++"Language-Team: Punjabi <https://translate.fedoraproject.org/projects/"
++"im-chooser/master/pa/>\n"
+ "Language: pa\n"
+ "MIME-Version: 1.0\n"
+ "Content-Type: text/plain; charset=UTF-8\n"
+ "Content-Transfer-Encoding: 8bit\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1)\n"
+-"X-Generator: Zanata 4.6.2\n"
++"Plural-Forms: nplurals=2; plural=(n != 1);\n"
++"X-Generator: Weblate 4.11.2\n"
+ 
+ #: libimchooseui/eggdesktopfile.c:165
+ msgid "File is not a valid .desktop file"
+@@ -139,6 +140,8 @@ msgid ""
+ "Current desktop isn't supported. Please follow instructions on your desktop "
+ "to enable Input Method."
+ msgstr ""
++"ਮੌਜੂਦਾ ਡੈਸਕਟਾਪ ਸਹਾਇਕ ਨਹੀਂ ਹੈ। ਆਪਣੇ ਡੈਸਕਟਾਪ ਉੱਤੇ ਹਦਾਇਤਾਂ ਦੀ ਪਾਲਣਾ ਕਰਕੇ ਇਨਪੁੱਟ "
++"ਢੰਗ ਸਮਰੱਥ ਕਰੋ।"
+ 
+ #: libimchooseui/imchooseui.c:343
+ msgid "Please install any input methods before running if you like."
+@@ -255,12 +258,13 @@ msgstr "ਇੰਪੁੱਟ ਢੰਗ ਚੋਣਕਾਰ"
+ msgid ""
+ "Choose the input method to be used or disable the input method usage on the "
+ "desktop"
+-msgstr "ਵਰਤਣ ਲਈ ਇੰਪੁੱਟ ਢੰਗ ਚੁਣੋ ਜਾਂ ਡੈਸਕਟਾਪ ਵਾਸਤੇ ਇੰਪੁੱਟ ਢੰਗ ਦੀ ਵਰਤੋਂ ਨੂੰ ਅਯੋਗ ਕਰੋ।"
++msgstr ""
++"ਵਰਤਣ ਲਈ ਇੰਪੁੱਟ ਢੰਗ ਚੁਣੋ ਜਾਂ ਡੈਸਕਟਾਪ ਵਾਸਤੇ ਇੰਪੁੱਟ ਢੰਗ ਦੀ ਵਰਤੋਂ ਨੂੰ ਅਸਮਰੱਥ ਕਰੋ"
+ 
+ #: src/app/main.c:98
+ #, c-format
+ msgid "Please check <a href=\"file://%s\">%s</a> for more details"
+-msgstr ""
++msgstr "ਹੋਰ ਵੇਰਵਿਆਂ ਲਈ <a href=\"file://%s\">%s</a> ਨੂੰ ਵੇਖੋ"
+ 
+ #: src/app/main.c:146 src/xfce/main.c:140
+ msgid "Could not connect to the session manager"
+@@ -285,15 +289,15 @@ msgstr "ਨਾ-ਸੋਧਣ ਯੋਗ ਗਲਤੀ"
+ 
+ #: src/app/main.c:216 src/xfce/main.c:266
+ msgid "_Close"
+-msgstr ""
++msgstr "ਬੰਦ ਕਰੋ(_C)"
+ 
+ #: src/app/main.c:217 src/xfce/main.c:267
+ msgid "_Log Out"
+-msgstr ""
++msgstr "ਲਾਗ ਆਉਟ(_L)"
+ 
+ #: src/app/main.c:229 src/xfce/main.c:279
+ msgid "_OK"
+-msgstr ""
++msgstr "ਠੀਕ ਹੈ(_O)"
+ 
+ #: src/xfce/main.c:163
+ msgid "Settings manager socket"
+diff --git a/po/sl.po b/po/sl.po
+index 28ba031..94b1d2c 100644
+--- a/po/sl.po
++++ b/po/sl.po
+@@ -3,25 +3,27 @@
+ # This file is distributed under the same license as the PACKAGE package.
+ #
+ # Rok Papez <rok.papez@lugos.si>, 2006.
++# Matjaž Jeran <matjaz.jeran@amis.net>, 2023.
+ msgid ""
+ msgstr ""
+ "Project-Id-Version: PACKAGE VERSION\n"
+ "Report-Msgid-Bugs-To: https://pagure.io/im-chooser/issues\n"
+ "POT-Creation-Date: 2021-12-02 17:20+0900\n"
+-"PO-Revision-Date: 2014-12-16 08:26-0500\n"
+-"Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
+-"Language-Team: LANGUAGE <LL@li.org>\n"
++"PO-Revision-Date: 2023-09-17 15:35+0000\n"
++"Last-Translator: Matjaž Jeran <matjaz.jeran@amis.net>\n"
++"Language-Team: Slovenian <https://translate.fedoraproject.org/projects/"
++"im-chooser/master/sl/>\n"
+ "Language: sl\n"
+ "MIME-Version: 1.0\n"
+ "Content-Type: text/plain; charset=UTF-8\n"
+ "Content-Transfer-Encoding: 8bit\n"
+-"Plural-Forms: nplurals=4; plural=(n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || n"
+-"%100==4 ? 2 : 3)\n"
+-"X-Generator: Zanata 4.6.2\n"
++"Plural-Forms: nplurals=4; plural=n%100==1 ? 0 : n%100==2 ? 1 : n%100==3 || "
++"n%100==4 ? 2 : 3;\n"
++"X-Generator: Weblate 5.0.2\n"
+ 
+ #: libimchooseui/eggdesktopfile.c:165
+ msgid "File is not a valid .desktop file"
+-msgstr ""
++msgstr "Datoteka ni veljavna datoteka .desktop"
+ 
+ #. translators: 'Version' is from a desktop file, and
+ #. * should not be translated. '%s' would probably be a
+@@ -29,149 +31,149 @@ msgstr ""
+ #: libimchooseui/eggdesktopfile.c:191
+ #, c-format
+ msgid "Unrecognized desktop file Version '%s'"
+-msgstr ""
++msgstr "Neprepoznana namizna datoteka Različica '%s'"
+ 
+ #: libimchooseui/eggdesktopfile.c:974
+ #, c-format
+ msgid "Starting %s"
+-msgstr ""
++msgstr "Zagon %s"
+ 
+ #: libimchooseui/eggdesktopfile.c:1116
+ msgid "Application does not accept documents on command line"
+-msgstr ""
++msgstr "Aplikacija ne sprejema dokumentov v ukazni vrstici"
+ 
+ #: libimchooseui/eggdesktopfile.c:1184
+ #, c-format
+ msgid "Unrecognized launch option: %d"
+-msgstr ""
++msgstr "Neprepoznana možnost zagona: %d"
+ 
+ #. translators: The 'Type=Link' string is found in a
+ #. * desktop file, and should not be translated.
+ #: libimchooseui/eggdesktopfile.c:1391
+ msgid "Can't pass document URIs to a 'Type=Link' desktop entry"
+-msgstr ""
++msgstr "URI-jev dokumenta ni mogoče posredovati vnosu na namizju 'Type=Link'"
+ 
+ #: libimchooseui/eggdesktopfile.c:1412
+ msgid "Not a launchable item"
+-msgstr ""
++msgstr "Predmet, ki ga ni mogoče zagnati"
+ 
+ #: libimchooseui/eggsmclient.c:222
+ msgid "Disable connection to session manager"
+-msgstr ""
++msgstr "Onemogoči povezavo z upraviteljem sej"
+ 
+ #: libimchooseui/eggsmclient.c:225
+ msgid "Specify file containing saved configuration"
+-msgstr ""
++msgstr "Določite datoteko, ki vsebuje shranjeno konfiguracijo"
+ 
+ #: libimchooseui/eggsmclient.c:225
+ msgid "FILE"
+-msgstr ""
++msgstr "DATOTEKA"
+ 
+ #: libimchooseui/eggsmclient.c:228
+ msgid "Specify session management ID"
+-msgstr ""
++msgstr "Določite ID upravljanja seje"
+ 
+ #: libimchooseui/eggsmclient.c:228
+ msgid "ID"
+-msgstr ""
++msgstr "ID"
+ 
+ #: libimchooseui/eggsmclient.c:249
+ msgid "Session management options:"
+-msgstr ""
++msgstr "Možnosti upravljanja seje:"
+ 
+ #: libimchooseui/eggsmclient.c:250
+ msgid "Show session management options"
+-msgstr ""
++msgstr "Prikaži možnosti upravljanja seje"
+ 
+ #: libimchooseui/imchoose.ui:8
+ msgid "Work in progress..."
+-msgstr ""
++msgstr "Delo v teku..."
+ 
+ #: libimchooseui/imchoose.ui:45 libimchooseui/imchoose.ui:174
+ msgid "label"
+-msgstr ""
++msgstr "nalepka"
+ 
+ #: libimchooseui/imchoose.ui:193
+ msgid "<b>Input Method</b>"
+-msgstr "<b></b>"
++msgstr "<b>Vhodna metoda</b>"
+ 
+ #: libimchooseui/imchooseui.c:164
+ msgid "No Input Method"
+-msgstr ""
++msgstr "Ni vnosne metode"
+ 
+ #: libimchooseui/imchooseui.c:166
+ #, c-format
+ msgid "Use %s"
+-msgstr ""
++msgstr "Uporabi %s"
+ 
+ #: libimchooseui/imchooseui.c:173
+ msgid " (legacy)"
+-msgstr ""
++msgstr " (zapuščina)"
+ 
+ #: libimchooseui/imchooseui.c:175
+ msgid " (recommended)"
+-msgstr ""
++msgstr " (priporočeno)"
+ 
+ #: libimchooseui/imchooseui.c:193
+ #, c-format
+ msgid "<a href=\"imsettings-prefs:///%s\">Preferences...</a>"
+-msgstr ""
++msgstr "<a href=\"imsettings-prefs:///%s\">Nastavitve...</a>"
+ 
+ #: libimchooseui/imchooseui.c:242
+ msgid "IMSettings is disabled on the system."
+-msgstr ""
++msgstr "IMSettings je onemogočen v sistemu."
+ 
+ #: libimchooseui/imchooseui.c:247
+ msgid "Unable to create a client instance."
+-msgstr ""
++msgstr "Ni mogoče ustvariti primerka odjemalca."
+ 
+ #: libimchooseui/imchooseui.c:256
+ #, c-format
+ msgid "Unable to communicate to IMSettings service: %s"
+-msgstr ""
++msgstr "Ni mogoče komunicirati s storitvijo IMSettings: %s"
+ 
+ #: libimchooseui/imchooseui.c:276
+ msgid ""
+ "Current desktop isn't supported. Please follow instructions on your desktop "
+ "to enable Input Method."
+-msgstr ""
++msgstr "Trenutno namizje ni podprto."
+ 
+ #: libimchooseui/imchooseui.c:343
+ msgid "Please install any input methods before running if you like."
+-msgstr ""
++msgstr "Če želite, pred zagonom namestite kateri koli način vnosa."
+ 
+ #: libimchooseui/imchooseui.c:413
+ msgid "Unable to get the information"
+-msgstr ""
++msgstr "Ni mogoče dobiti informacij"
+ 
+ #: libimchooseui/imchooseui.c:426
+ msgid "Unable to invoke the preference tool"
+-msgstr ""
++msgstr "Orodja za nastavitve ni mogoče priklicati"
+ 
+ #: libimchooseui/imchooseui.c:447
+ #, c-format
+ msgid "Switching Input Method - %s"
+-msgstr ""
++msgstr "Preklapljanje vnosne metode - %s"
+ 
+ #: libimchooseui/imchooseui.c:469
+ msgid "Unknown error during finalizing the request of SwitchIM"
+-msgstr ""
++msgstr "Neznana napaka med dokončanjem zahteve SwitchIM"
+ 
+ #: libimchooseui/imchooseui.c:476
+ msgid "Failed to switch Input Method"
+-msgstr ""
++msgstr "Preklop vnosnega načina ni uspel"
+ 
+ #: libimchooseui/imchooseui.c:657
+ msgid "X applications"
+-msgstr ""
++msgstr "X aplikacije"
+ 
+ #: libimchooseui/imchooseui.c:658
+ msgid "GTK+ applications"
+-msgstr ""
++msgstr "GTK aplikacije"
+ 
+ #: libimchooseui/imchooseui.c:659
+ msgid "Qt applications"
+-msgstr ""
++msgstr "Aplikacije Qt"
+ 
+ # This will be displayed like "<small><i>Note: this change will not take
+ # effect until your next log in, except X applications and Qt
+@@ -189,7 +191,7 @@ msgstr ""
+ #: libimchooseui/imchooseui.c:677
+ #, c-format
+ msgid ", except %s and %s"
+-msgstr ""
++msgstr ", razen %s in %s"
+ 
+ # This will be displayed like "<small><i>Note: this change will not take
+ # effect until your next log in, except X applications</i></small>"
+@@ -204,7 +206,7 @@ msgstr ""
+ #: libimchooseui/imchooseui.c:690
+ #, c-format
+ msgid ", except %s"
+-msgstr ""
++msgstr ", razen %s"
+ 
+ # This will be displayed like "<small><i>Note: this change will not take
+ # effect until your next log in, except GTK+ applications</i></small>"
+@@ -215,84 +217,88 @@ msgid ""
+ "<small><i>Note: this change will not take effect until your next log in%s</"
+ "i></small>"
+ msgstr ""
++"<small><i>Opomba: ta sprememba ne bo začela veljati do vaše naslednje "
++"prijave%s</i></small>"
+ 
+ #: libimchooseui/imchooseui.c:707
+ msgid "Unable to obtain the object for note"
+-msgstr ""
++msgstr "Ni mogoče pridobiti predmeta za opombo"
+ 
+ #: libimchooseui/imchooseui.c:713
+ msgid "Unable to obtain the object for tree"
+-msgstr ""
++msgstr "Ni mogoče pridobiti predmeta za drevo"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:241
+ msgid "Widget"
+-msgstr ""
++msgstr "Gradnik"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:242
+ msgid "Widget to contain in the cell"
+-msgstr ""
++msgstr "Gradnik, ki naj bo v celici"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:248
+ msgid "Spacing"
+-msgstr ""
++msgstr "Razmik"
+ 
+ #: libimchooseui/imchooseuicellrendererlabel.c:249
+ msgid "The amount of space between label"
+-msgstr ""
++msgstr "Količina prostora med oznako"
+ 
+ #: src/app/im-chooser.desktop.in:4 src/app/main.c:212 src/xfce/main.c:262
+ #: src/xfce/xfce4-im-chooser.desktop.in:6
+ msgid "Input Method Selector"
+-msgstr ""
++msgstr "Izbirnik vnosne metode"
+ 
+ #: src/app/im-chooser.desktop.in:5 src/xfce/xfce4-im-chooser.desktop.in:7
+ msgid ""
+ "Choose the input method to be used or disable the input method usage on the "
+ "desktop"
+ msgstr ""
++"Izberite način vnosa, ki ga želite uporabiti, ali onemogočite uporabo načina "
++"vnosa na namizju"
+ 
+ #: src/app/main.c:98
+ #, c-format
+ msgid "Please check <a href=\"file://%s\">%s</a> for more details"
+-msgstr ""
++msgstr "Za več podrobnosti preverite <a href=\"file://%s\">%s</a>"
+ 
+ #: src/app/main.c:146 src/xfce/main.c:140
+ msgid "Could not connect to the session manager"
+-msgstr ""
++msgstr "Ni bilo mogoče vzpostaviti povezave z upraviteljem seje"
+ 
+ #: src/app/main.c:165 src/xfce/main.c:160
+ msgid "[options...]"
+-msgstr ""
++msgstr "[možnosti...]"
+ 
+ #: src/app/main.c:185 src/xfce/main.c:179
+ #, c-format
+ msgid "Could not parse arguments: %s\n"
+-msgstr ""
++msgstr "Ni bilo mogoče razčleniti argumentov: %s\n"
+ 
+ #: src/app/main.c:202 src/xfce/main.c:238 src/xfce/main.c:253
+ msgid "No input method is available"
+-msgstr ""
++msgstr "Nobena metoda vnosa ni na voljo"
+ 
+ #: src/app/main.c:205 src/xfce/main.c:241 src/xfce/main.c:256
+ msgid "Unrecoverable error"
+-msgstr ""
++msgstr "Nepopravljiva napaka"
+ 
+ #: src/app/main.c:216 src/xfce/main.c:266
+ msgid "_Close"
+-msgstr ""
++msgstr "_Zapri"
+ 
+ #: src/app/main.c:217 src/xfce/main.c:267
+ msgid "_Log Out"
+-msgstr ""
++msgstr "_Odjava"
+ 
+ #: src/app/main.c:229 src/xfce/main.c:279
+ msgid "_OK"
+-msgstr ""
++msgstr "_V redu"
+ 
+ #: src/xfce/main.c:163
+ msgid "Settings manager socket"
+-msgstr ""
++msgstr "Vtičnica upravitelja nastavitev"
+ 
+ #: src/xfce/main.c:163
+ msgid "SOCKET ID"
+-msgstr ""
++msgstr "ID VTIČNICE"
+diff --git a/requires b/requires
+index 75208d9..a389ce9 100644
+--- a/requires
++++ b/requires
+@@ -1,3 +1,3 @@
+ GLIB_REQUIRED=2.16.0
+ GTK_REQUIRED=3.0.0
+-IMSETTINGS_REQUIRED=1.8.0
++IMSETTINGS_REQUIRED=1.8.9

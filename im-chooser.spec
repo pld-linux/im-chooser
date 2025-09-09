@@ -6,17 +6,18 @@
 Summary:	Desktop Input Method configuration tool
 Summary(pl.UTF-8):	Narzędzie do konfiguracji metod wprowadzania znaków dla środowiska graficznego
 Name:		im-chooser
-Version:	1.7.4
-Release:	2
+Version:	1.7.5
+Release:	1
 License:	GPL v2
 Group:		Applications
-Source0:	https://releases.pagure.org/im-chooser/%{name}-%{version}.tar.bz2
+# For unknown reason there is no tarball for 1.7.5
+Source0:	https://releases.pagure.org/im-chooser/%{name}-1.7.4.tar.bz2
 # Source0-md5:	ee923ebf5a729e2f2e48887b4a4e9a5d
-Patch0:		%{name}-imchooserui.patch
+Patch0:		git-%{version}.patch
 URL:		https://pagure.io/im-chooser/
 BuildRequires:	gettext-tools >= 0.19.8
 BuildRequires:	glib2-devel >= 1:2.16.0
-BuildRequires:	imsettings-devel >= 1.8.0
+BuildRequires:	imsettings-devel >= 1.8.9
 %{?with_xfce:BuildRequires:	libxfce4util-devel}
 BuildRequires:	pkgconfig
 BuildRequires:	xorg-lib-libSM-devel
@@ -27,7 +28,7 @@ BuildConflicts:	gtk+3-devel
 BuildRequires:	gtk+3-devel >= 3.0.0
 #BuildRequires:	gnome-control-center-devel >= 3.0.0
 %endif
-Requires:	imsettings >= 1.8.0
+Requires:	imsettings >= 1.8.9
 Obsoletes:	im-chooser-gnome3 < 1.5
 BuildRoot:	%{tmpdir}/%{name}-%{version}-root-%(id -u -n)
 
@@ -60,10 +61,14 @@ użycia IM w środowisku graficznym.
 Ten pakiet zawiera aplikację przeznaczoną dla Xfce 4.
 
 %prep
-%setup -q
+%setup -q -n %{name}-1.7.4
 %patch -P0 -p1
 
 %build
+%{__aclocal}
+%{__autoconf}
+%{__autoheader}
+%{__automake}
 %configure \
 	--disable-silent-rules \
 	--disable-static
